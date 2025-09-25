@@ -1,0 +1,12 @@
+{
+    "test_case_id": 2,
+    "status": "Failed",
+    "objective": "Solve a simple subtraction puzzle",
+    "initial_state": "Numbers: [10, 4, 2], Target: 4",
+    "expected_actions": "Select 10, Select 4, Select 2",
+    "expected_results": "Game solved, score increased",
+    "actual_log": "Test case 2 failed: Expecting value: line 1 column 1 (char 0)",
+    "artifacts": {
+        "screenshot": "test_case_2_screenshot.png"
+    }
+}
