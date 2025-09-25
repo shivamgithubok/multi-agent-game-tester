@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Agent Game Tester</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Multi-Agent Game Tester</h1>
+    </header>
+
+    <section id="test-case-generation">
+      <h2>Generate Test Cases</h2>
+      <button id="generate-btn">Generate Test Cases</button>
+      <button id="orchestrate-btn">Orchestrate All Tests</button>
+      <div id="loading-indicator" class="hidden">Generating...</div>
+      <ul id="test-cases-list"></ul>
+    </section>
+
+    <section id="test-execution">
+      <h2>Execute Test Cases</h2>
+      <div id="execution-status"></div>
+    </section>
+
+    <section id="report-viewer">
+      <h2>Test Report</h2>
+      <div id="report-content"></div>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
