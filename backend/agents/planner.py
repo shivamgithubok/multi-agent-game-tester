@@ -2,9 +2,8 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-import json
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
 
 load_dotenv()
 
@@ -14,50 +13,60 @@ if not GOOGLE_API_KEY:
 
 class PlannerAgent:
     def __init__(self):
-        # Configure Gemini
         genai.configure(api_key=GOOGLE_API_KEY)
         
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash", # Changed to gemini-1.5-pro for better performance
-            temperature=0.7,
+            model="gemini-2.0-flash",
+            temperature=0.8, 
             google_api_key=GOOGLE_API_KEY,
-            convert_system_message_to_human=True, # Added for Gemini 1.5/2.0 compatibility
-            response_mime_type="application/json" # Explicitly request JSON output
         )
         
+        # --- START OF REFINED PROMPT ---
+        # This prompt focuses on creating general, high-value test objectives
+        # that are likely to be possible on a random game board.
         self.prompt = PromptTemplate(
-            input_variables=["game_url"],
             template="""
-            Generate 20 test cases for the math puzzle game at {game_url}.
-            Each test case should include:
-            1. Test objective
-            2. Initial game state
-            3. Expected actions
-            4. Expected results
-            Format the output as a JSON array of structured JSON objects, where each object represents a test case.
-            """
+            You are a creative QA tester for a web game called SumLink.
+            The fundamental rules are:
+            1. Clear pairs of IDENTICAL numbers (e.g., 8 and 8).
+            2. Clear pairs of numbers that SUM TO 10 (e.g., 2 and 8).
+
+            Generate 20 high-level test objectives. Focus on what should be tested, not the specific layout.
+            Include a mix of positive and negative test objectives.
+
+            Good Examples of Objectives:
+            - "Verify the removal of any valid identical pair."
+            - "Verify the removal of any valid pair that sums to 10."
+            - "Verify that an invalid pair (e.g., summing to 9) cannot be removed."
+            - "Verify that clicking the same number twice does not form a pair."
+
+            Bad Examples (Too Specific):
+            - "Verify removal of an adjacent 7 and 3." (Relies on a specific board layout)
+            - "Verify removal of a 5 at the start of a row and a 5 at the end." (Too specific)
+
+            The JSON object for each test case must have these keys:
+            - "test_objective": A short, high-level description of the test's goal.
+            - "expected_results": A description of the expected outcome.
+
+            Return ONLY a single, valid JSON array of 20 test case objects.
+            \n{format_instructions}\n
+            """,
+            input_variables=[],
+            partial_variables={"format_instructions": JsonOutputParser().get_format_instructions()}
         )
-        self.chain = LLMChain(llm=self.llm, prompt=self.prompt)
+        # --- END OF REFINED PROMPT ---
+        
+        self.chain = self.prompt | self.llm | JsonOutputParser()
 
     def generate_test_cases(self):
-        test_cases = self.chain.run(game_url="https://play.ezygamers.com/")
-        return self._parse_test_cases(test_cases)
-
-    def _parse_test_cases(self, raw_output):
-        try:
-            # Assuming the LLM returns a JSON string that is a list of test case objects
-            test_cases_raw = json.loads(raw_output)
-            test_cases = []
-            for i, case_raw in enumerate(test_cases_raw):
-                # Convert keys to snake_case for consistency
-                case = {}
-                for key, value in case_raw.items():
-                    new_key = key.lower().replace(" ", "_")
-                    case[new_key] = value
-                case['id'] = i + 1 # Ensure each test case has an 'id'
-                test_cases.append(case)
-            return test_cases
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON from LLM: {e}")
-            print(f"Raw LLM output: {raw_output}")
-            return [] # Return an empty list or handle the error as appropriate
+        print("PlannerAgent: Generating realistic test objectives...")
+        test_cases_raw = self.chain.invoke({})
+        
+        test_cases = []
+        for i, case_raw in enumerate(test_cases_raw):
+            case = {key.lower().replace(" ", "_"): value for key, value in case_raw.items()}
+            case['id'] = i + 1
+            test_cases.append(case)
+        
+        print(f"PlannerAgent: Generated {len(test_cases)} objectives.")
+        return test_cases

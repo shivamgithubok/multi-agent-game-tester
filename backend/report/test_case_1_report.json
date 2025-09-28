@@ -1,12 +1,13 @@
 {
     "test_case_id": 1,
     "status": "Failed",
-    "objective": "Solve a simple addition puzzle",
-    "initial_state": "Numbers: [1, 2, 3], Target: 6",
-    "expected_actions": "Select 1, Select 2, Select 3",
-    "expected_results": "Game solved, score increased",
-    "actual_log": "Test case 1 failed: Expecting value: line 1 column 1 (char 0)",
+    "objective": "Verify the removal of any valid identical pair.",
+    "expected_results": "The identical pair should be removed from the game board.",
+    "actual_log": "Execution failed: Timed out trying to click the N/A-th instance of 'N/A'. The Solver's plan may be invalid. The board state at the time of error was: Not captured",
+    "actual_results": "Could not complete action. The board state before the error was: Not captured",
     "artifacts": {
-        "screenshot": "test_case_1_screenshot.png"
+        "screenshots": [
+            "test_case_1_final_state.png"
+        ]
     }
 }

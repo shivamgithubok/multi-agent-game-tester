@@ -1,128 +1,113 @@
 import json
 import os
 from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException, TimeoutException
 import time
 from dotenv import load_dotenv
-import google.generativeai as genai
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-
-load_dotenv()
-
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY environment variable is not set")
+from agents.solver import SolverAgent
 
 class ExecutorAgent:
-    def __init__(self, report_dir="report"):
+    def __init__(self, solver: SolverAgent, report_dir="report"):
         self.report_dir = report_dir
-        # Ensure the report directory exists
-        if not os.path.exists(self.report_dir):
-            os.makedirs(self.report_dir)
-        
-        # Configure Gemini for action interpretation
-        genai.configure(api_key=GOOGLE_API_KEY)
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
-            temperature=0.7,
-            api_key=GOOGLE_API_KEY
-        )
-        self.action_prompt = PromptTemplate(
-            input_variables=["game_url", "expected_actions"],
-            template="""
-            Given the game at {game_url} and the expected actions: {expected_actions},
-            generate a Python list of Selenium WebDriver commands to perform these actions.
-            Each command should be a dictionary with 'method' (e.g., 'click', 'send_keys', 'get')
-            and 'args' (a dictionary of arguments).
-            For example: 
-            [{{"method": "get", "args": {{"url": "https://play.ezygamers.com/"}}}},
-             {{"method": "find_element_by_id", "args": {{"id": "some_button"}}}},
-             {{"method": "click", "args": {{}}}},
-             {{"method": "find_element_by_name", "args": {{"name": "some_input"}}}},
-             {{"method": "send_keys", "args": {{"keys": "123"}}}}]
-            Only provide the list of commands, no extra text.
-            """
-        )
-        self.action_chain = LLMChain(llm=self.llm, prompt=self.action_prompt)
+        self.solver = solver
 
-    def execute_test_case(self, test_case):
-        test_case_id = test_case['id']
-        game_url = "https://play.ezygamers.com/"
-        expected_actions_description = test_case['expected_actions']
-
-        # Setup Selenium WebDriver
-        driver = webdriver.Chrome()
-
-        # Open the game URL
-        driver.get(game_url)
-        time.sleep(4) # Give some time for the page to load
-
-        # Interpret and execute actions using LLM
+    def _get_board_state(self, driver, wait: WebDriverWait):
         try:
-            selenium_commands_str = self.action_chain.run(
-                game_url=game_url,
-                expected_actions=expected_actions_description
-            )
-            
-            # Debugging: Print raw LLM output for Selenium commands
-            print(f"Raw LLM output for Selenium commands (Test Case {test_case_id}): {selenium_commands_str}")
-
-            selenium_commands = json.loads(selenium_commands_str)
-            
-            for command in selenium_commands:
-                method = command['method']
-                args = command.get('args', {})
-                
-                # Special handling for element-based actions
-                if method.startswith("find_element_"):
-                    element = getattr(driver, method)(**args)
-                    # Assuming the next command is an action on this element
-                    # This is a simplification; a more robust solution would chain calls
-                    continue
-                elif method in ['click', 'send_keys'] and 'element' in locals():
-                    getattr(element, method)(**args)
-                else:
-                    getattr(driver, method)(**args)
-                time.sleep(5) # Small delay between actions
-
+            grid = wait.until(EC.presence_of_element_located((By.ID, "main-game-grid")))
+            wait.until(EC.presence_of_element_located((By.XPATH, ".//div[contains(@class, 'grid-cell')]")))
+            active_cells = grid.find_elements(By.XPATH, ".//div[contains(@class, 'grid-cell') and not(contains(@class, 'blurred')) and not(contains(@class, 'cleared'))]")
+            return [cell.text.strip() for cell in active_cells if cell.text.strip().isdigit()]
         except Exception as e:
-            print(f"Error executing Selenium actions: {e}")
-            status = "Failed"
-            log_content = f"Test case {test_case_id} failed: {e}"
-        else:
-            status = "Success"
-            log_content = f"Test case {test_case_id} executed successfully."
+            print(f"Error while reading board state: {e}")
+            return []
 
-        # Capture screenshot
-        screenshot_path = os.path.join(self.report_dir, f"test_case_{test_case_id}_screenshot.png")
-        driver.save_screenshot(screenshot_path)
-
-        # Generate a JSON report
+    # --- START OF REVERTED AND CORRECTED CODE ---
+    # This method now handles the entire lifecycle for a single test case.
+    def execute_test_case(self, test_case: dict):
+        test_case_id, objective = test_case['id'], test_case['test_objective']
+        print(f"\nExecutorAgent: Starting new session for Test Case {test_case_id}: {objective}")
+        
+        driver = None # Initialize driver to None
         report_data = {
-            "test_case_id": test_case_id,
-            "status": status,
-            "objective": test_case.get('test_objective', 'N/A'),
-            "initial_state": test_case.get('initial_game_state', 'N/A'),
-            "expected_actions": test_case.get('expected_actions', 'N/A'),
-            "expected_results": test_case.get('expected_results', 'N/A'),
-            "actual_log": log_content,
-            "artifacts": {
-                "screenshot": f"test_case_{test_case_id}_screenshot.png",
-                # Removed log from artifacts as content is directly in actual_log
-                # "log": f"test_case_{test_case_id}_log.txt",
-            }
+            "test_case_id": test_case_id, "status": "Failed",
+            "objective": objective,
+            "expected_results": test_case.get('expected_results'),
+            "actual_log": "Test execution did not start.", 
+            "actual_results": "", "artifacts": {"screenshots": []}
         }
+        board_state_before = "Not captured"
+        action_plan = {}
 
-        # Save the report data to a JSON file
-        report_file_path = os.path.join(self.report_dir, f"test_case_{test_case_id}_report.json")
         try:
+            # --- Setup is now INSIDE the try block ---
+            driver = webdriver.Chrome()
+            driver.maximize_window()
+            wait = WebDriverWait(driver, 20)
+            driver.get("https://play.ezygamers.com/")
+
+            wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='English']"))).click()
+            new_game_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='New Game']")))
+            driver.execute_script("localStorage.setItem('sumLinkTutorialCompleted', 'true');")
+            new_game_button.click()
+            wait.until(EC.visibility_of_element_located((By.ID, "main-game-grid")))
+
+            # --- Test execution logic remains the same ---
+            board_state_before = self._get_board_state(driver, wait)
+            before_screenshot_path = os.path.join(self.report_dir, f"test_case_{test_case_id}_before.png")
+            driver.save_screenshot(before_screenshot_path)
+            report_data["artifacts"]["screenshots"].append(os.path.basename(before_screenshot_path))
+            
+            action_plan = self.solver.create_action_plan(board_state_before, objective)
+
+            if not action_plan.get("actionable", True):
+                report_data['status'] = "Passed"
+                report_data['actual_log'] = f"Solver correctly determined no action was possible. Board state was: {board_state_before}"
+                report_data['actual_results'] = f"Board state remained unchanged, as expected. Reason: {action_plan.get('reason')}"
+            else:
+                first_num, first_idx = action_plan['first_number'], action_plan['first_index']
+                second_num, second_idx = action_plan['second_number'], action_plan['second_index']
+
+                xpath1 = f"(//div[contains(@class, 'grid-cell') and not(contains(@class, 'blurred')) and not(contains(@class, 'cleared')) and normalize-space()='{first_num}'])[{first_idx}]"
+                xpath2 = f"(//div[contains(@class, 'grid-cell') and not(contains(@class, 'blurred')) and not(contains(@class, 'cleared')) and normalize-space()='{second_num}'])[{second_idx}]"
+                
+                print(f"[DEBUG] Clicking based on plan: XPaths [{xpath1}] and [{xpath2}]")
+                wait.until(EC.element_to_be_clickable((By.XPATH, xpath1))).click()
+                time.sleep(0.5)
+                wait.until(EC.element_to_be_clickable((By.XPATH, xpath2))).click()
+                
+                time.sleep(2)
+                board_state_after = self._get_board_state(driver, wait)
+                after_screenshot_path = os.path.join(self.report_dir, f"test_case_{test_case_id}_after.png")
+                driver.save_screenshot(after_screenshot_path)
+                report_data["artifacts"]["screenshots"].append(os.path.basename(after_screenshot_path))
+
+                report_data['status'] = "Pending Analysis"
+                report_data['actual_log'] = f"Successfully clicked the pair: ({first_num}, {second_num}). Initial board state was: {board_state_before}"
+                report_data['actual_results'] = f"Board after clicks: {board_state_after}."
+
+        except (TimeoutException, NoSuchElementException, IndexError) as e:
+            plan_str = f"the {action_plan.get('first_index', 'N/A')}-th instance of '{action_plan.get('first_number', 'N/A')}'"
+            error_message = f"Execution failed: Timed out trying to click {plan_str}. The Solver's plan may be invalid. The board state at the time of error was: {board_state_before}"
+            report_data['actual_log'] = error_message
+            report_data['actual_results'] = f"Could not complete action. The board state before the error was: {board_state_before}"
+        
+        finally:
+            # --- This block now GUARANTEES logs and screenshots are saved ---
+            if driver:
+                error_screenshot_path = os.path.join(self.report_dir, f"test_case_{test_case_id}_final_state.png")
+                driver.save_screenshot(error_screenshot_path)
+                report_data["artifacts"]["screenshots"].append(os.path.basename(error_screenshot_path))
+                
+                print("ExecutorAgent: Closing session.")
+                driver.quit()
+            
+            # Save the report file no matter what
+            report_file_path = os.path.join(self.report_dir, f"test_case_{test_case_id}_report.json")
             with open(report_file_path, "w") as report_file:
                 json.dump(report_data, report_file, indent=4)
-        except Exception as e:
-            print(f"Error writing JSON report: {e}")
-            raise
-
-        driver.quit()
-
+        
         return report_data
+    # --- END OF REVERTED AND CORRECTED CODE ---
