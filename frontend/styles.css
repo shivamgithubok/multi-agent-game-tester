@@ -113,16 +113,18 @@ button:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 10px 0;
 }
 
 .test-case-details {
-  margin-top: 10px;
-  padding-left: 20px;
-  border-left: 2px solid #ccc;
+  padding: 10px;
+  margin: 10px 0;
+  background-color: #f8f9fa;
+  border-radius: 4px;
 }
 
-.test-case-details p {
-  margin-bottom: 5px;
+.test-case-details.hidden {
+  display: none;
 }
 
 .execute-single-btn {
@@ -145,7 +147,9 @@ button:hover {
 }
 
 .list-group-item {
-  margin-bottom: 5px;
+  margin-bottom: 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.3s;
 }
@@ -180,4 +184,13 @@ button:hover {
 
 .status-failed {
   background-color: #ffb6c1;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.alert {
+  margin-top: 1rem;
 }

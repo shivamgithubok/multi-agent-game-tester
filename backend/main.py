@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
 from agents.analyzer import AnalyzerAgent
@@ -10,6 +11,15 @@ import json
 import os
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],  # Add your frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 # Agent setup is correct
 print("Initializing agents...")
