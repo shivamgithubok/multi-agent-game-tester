@@ -1,0 +1,13 @@
+{
+    "test_case_id": 1,
+    "status": "Failed",
+    "objective": "Verify that clicking two identical, adjacent numbers clears them from the game board.",
+    "expected_results": "The two clicked numbers disappear, and the game state updates correctly (e.g., score increases).",
+    "actual_log": "Test execution did not start.",
+    "actual_results": "",
+    "artifacts": {
+        "screenshots": [
+            "test_case_1_1920x1080_final.png"
+        ]
+    }
+}

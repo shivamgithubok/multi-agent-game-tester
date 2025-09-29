@@ -1,0 +1,18 @@
+{
+    "test_case_id": 3,
+    "status": "Failed",
+    "objective": "Verify the core negative case: an invalid pair (e.g., summing to 9) cannot be removed.",
+    "expected_results": "The numbers should remain on the board, and no pair should be cleared.",
+    "actual_log": "Failure on 390x844: Timed out trying to click the N/A-th 'N/A'. Board state: Not captured",
+    "actual_results": "",
+    "artifacts": {
+        "screenshots": [
+            "test_case_3_390x844_final.png"
+        ]
+    },
+    "resolution_name": "Mobile",
+    "analysis": {
+        "verdict": "Failed",
+        "reason": "The actual observed results are empty, indicating a complete lack of output. This does not match the expected outcome of the numbers remaining on the board."
+    }
+}

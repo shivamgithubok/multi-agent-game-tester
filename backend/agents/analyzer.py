@@ -35,9 +35,11 @@ class AnalyzerAgent:
 
     def analyze_test_case(self, test_case_report):
         test_case_id = test_case_report['test_case_id']
-        print(f"AnalyzerAgent: Analyzing Test Case {test_case_id}...")
+        resolution_name = test_case_report.get('resolution_name', 'Desktop') # Get the name, with a default
+        print(f"AnalyzerAgent: Analyzing Test Case {test_case_id} for {resolution_name}...")
         
         try:
+            # ... (analysis logic is correct) ...
             analysis_result = self.chain.invoke({
                 "expected_results": test_case_report['expected_results'],
                 "actual_results": test_case_report['actual_results']
@@ -53,10 +55,14 @@ class AnalyzerAgent:
         test_case_report['analysis'] = {'verdict': verdict, 'reason': reason}
         test_case_report['status'] = verdict
         
-        # Save the final, analyzed report
-        report_file_path = os.path.join("report", f"test_case_{test_case_id}_report.json")
+        # --- START OF FIX ---
+        # Construct the final report filename using the provided resolution name
+        resolution_tuple = test_case_report.get('resolution', (1920, 1080))
+        report_file_path = os.path.join("report", f"test_case_{test_case_id}_{resolution_name}_{resolution_tuple[0]}x{resolution_tuple[1]}_report.json")
+        # --- END OF FIX ---
+        
         with open(report_file_path, "w") as report_file:
             json.dump(test_case_report, report_file, indent=4)
         
-        print(f"AnalyzerAgent: Verdict for Test Case {test_case_id} is '{verdict}'.")
+        print(f"AnalyzerAgent: Verdict for Test Case {test_case_id} on {resolution_name} is '{verdict}'.")
         return test_case_report

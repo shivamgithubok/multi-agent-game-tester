@@ -1,0 +1,18 @@
+{
+    "test_case_id": 3,
+    "status": "Failed",
+    "objective": "Verify the core negative case: an invalid pair (e.g., summing to 9) cannot be removed.",
+    "expected_results": "The numbers should remain on the board, and no pair should be cleared.",
+    "actual_log": "Failure on 720x1080: Timed out trying to click the N/A-th 'N/A'. Board state: Not captured",
+    "actual_results": "",
+    "artifacts": {
+        "screenshots": [
+            "test_case_3_720x1080_final.png"
+        ]
+    },
+    "resolution_name": "Desktop",
+    "analysis": {
+        "verdict": "Failed",
+        "reason": "Analysis failed due to a processing error: 500 Internal error encountered."
+    }
+}

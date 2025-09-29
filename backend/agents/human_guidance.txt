@@ -1,0 +1,3 @@
+# For this run, please focus heavily on testing invalid user actions.
+# For example, what happens when a user tries to pair a number with itself when it doesn't sum to 10?
+# Also, create a test case for trying to pair two different numbers that are identical but have another number between them.

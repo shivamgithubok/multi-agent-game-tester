@@ -1,0 +1,18 @@
+{
+    "test_case_id": 1,
+    "status": "Failed",
+    "objective": "Verify the core game mechanic: successfully remove a valid pair that sums to 10.",
+    "expected_results": "The two numbers summing to 10 should be removed from the grid.",
+    "actual_log": "Failure on 390x844: Timed out trying to click the N/A-th 'N/A'. Board state: Not captured",
+    "actual_results": "",
+    "artifacts": {
+        "screenshots": [
+            "test_case_1_390x844_final.png"
+        ]
+    },
+    "resolution_name": "Mobile",
+    "analysis": {
+        "verdict": "Failed",
+        "reason": "The expected result was that numbers summing to 10 would be removed from the grid, but the actual result was an empty string, indicating that nothing was removed. This mismatch constitutes a failure."
+    }
+}
