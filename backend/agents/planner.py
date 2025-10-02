@@ -6,12 +6,13 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 
 load_dotenv()
+
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
 class PlannerAgent:
     def __init__(self):
         genai.configure(api_key=GOOGLE_API_KEY)
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.8, google_api_key=GOOGLE_API_KEY)
+        self.llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest", temperature=0.8, google_api_key=GOOGLE_API_KEY)
         
         self.prompt = PromptTemplate(
             template="""
@@ -24,7 +25,7 @@ class PlannerAgent:
             ---
 
             Second, use the context from past test failures to create new tests that probe those specific weaknesses.
-            Past Failures Context:
+            Past Failures Context (retrieved from memory):
             ---
             {context}
             ---
@@ -43,19 +44,12 @@ class PlannerAgent:
         print("PlannerAgent: Generating objectives using human guidance and past context...")
         try:
             test_cases_raw = self.chain.invoke({"context": context, "human_guidance": human_guidance})
-            
-            test_cases = []
-            for i, case_raw in enumerate(test_cases_raw):
-                case = {key.lower().replace(" ", "_"): value for key, value in case_raw.items()}
-                case['id'] = 200 + i # Use a high ID range to avoid conflict with foundational tests
-                test_cases.append(case)
-            
+            test_cases = [{'id': 200 + i, **{k.lower().replace(" ", "_"): v for k, v in case.items()}} for i, case in enumerate(test_cases_raw)]
             print(f"PlannerAgent: Generated {len(test_cases)} AI-driven objectives.")
             return test_cases
         except Exception as e:
-            print(f"PlannerAgent: Failed to generate test cases due to an error: {e}. Returning an empty list.")
-            return [] # Return empty list on failure
-
+            print(f"PlannerAgent: Failed to generate test cases due to an error (possibly from the API): {e}. Returning an empty list.")
+            return []
 
 # import os
 # from dotenv import load_dotenv

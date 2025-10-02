@@ -4,3 +4,8 @@ langchain
 requests
 pydantic
 python-dotenv
+faiss-cpu
+langchain 
+langchain-google-genai
+langchain-community
+sentence-transformers 

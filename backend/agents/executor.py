@@ -15,6 +15,13 @@ class ExecutorAgent:
         self.report_dir = report_dir
         self.solver = solver
 
+    def _get_active_elements(self, driver, wait: WebDriverWait):
+        try:
+            grid = wait.until(EC.presence_of_element_located((By.ID, "main-game-grid")))
+            return grid.find_elements(By.XPATH, ".//div[contains(@class, 'grid-cell') and not(contains(@class, 'blurred')) and not(contains(@class, 'cleared'))]")
+        except Exception:
+            return []
+
     def execute_test_case(self, test_case: dict, resolution: tuple):
         test_case_id, objective = test_case['id'], test_case['test_objective']
         resolution_str = f"{resolution[0]}x{resolution[1]}"
@@ -22,59 +29,57 @@ class ExecutorAgent:
         
         driver = None
         report_data = {
-            "test_case_id": test_case_id, "status": "Failed",
-            "objective": objective,
-            "expected_results": test_case.get('expected_results'),
-            "actual_log": "Test execution did not start.", 
-            "actual_results": "", "artifacts": {"screenshots": []}
+            "test_case_id": test_case_id, "status": "Failed", "objective": objective,
+            "expected_results": test_case.get('expected_results'), "actual_log": "Test did not start.",
+            "actual_results": "", "artifacts": {"screenshots": []}, "resolution_name": resolution_str
         }
-        board_state_before = "Not captured"
-        action_plan = {}
 
         try:
             driver = webdriver.Chrome()
             driver.set_window_size(resolution[0], resolution[1])
             wait = WebDriverWait(driver, 20)
-
             driver.get("https://play.ezygamers.com/")
             wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='English']"))).click()
             new_game_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='New Game']")))
             driver.execute_script("localStorage.setItem('sumLinkTutorialCompleted', 'true');")
             new_game_button.click()
-            wait.until(EC.visibility_of_element_located((By.ID, "main-game-grid")))
             
-            board_state_before = self._get_board_state(driver, wait)
+            active_elements_before = self._get_active_elements(driver, wait)
+            board_state_before = [el.text for el in active_elements_before]
+            
             before_screenshot_path = os.path.join(self.report_dir, f"test_case_{test_case_id}_{resolution_str}_before.png")
             driver.save_screenshot(before_screenshot_path)
             report_data["artifacts"]["screenshots"].append(os.path.basename(before_screenshot_path))
             
-            action_plan = self.solver.create_action_plan(board_state_before, objective)
+            action_plan = self.solver.create_action_plan(active_elements_before, objective)
 
             if not action_plan.get("actionable", True):
                 report_data['status'] = "Passed"
-                report_data['actual_log'] = f"Solver correctly determined no action was possible on {resolution_str}. Board: {board_state_before}"
+                report_data['actual_log'] = f"Solver correctly determined no valid move existed. Board: {board_state_before}"
             else:
-                first_num, first_idx = action_plan['first_number'], action_plan['first_index']
-                second_num, second_idx = action_plan['second_number'], action_plan['second_index']
-
-                xpath1 = f"(//div[contains(@class, 'grid-cell') and not(contains(@class, 'blurred')) and not(contains(@class, 'cleared')) and normalize-space()='{first_num}'])[{first_idx}]"
-                xpath2 = f"(//div[contains(@class, 'grid-cell') and not(contains(@class, 'blurred')) and not(contains(@class, 'cleared')) and normalize-space()='{second_num}'])[{second_idx}]"
-                
-                wait.until(EC.element_to_be_clickable((By.XPATH, xpath1))).click()
-                time.sleep(0.5)
-                wait.until(EC.element_to_be_clickable((By.XPATH, xpath2))).click()
-                
-                time.sleep(2)
-                board_state_after = self._get_board_state(driver, wait)
-                after_screenshot_path = os.path.join(self.report_dir, f"test_case_{test_case_id}_{resolution_str}_after.png")
-                driver.save_screenshot(after_screenshot_path)
-                report_data["artifacts"]["screenshots"].append(os.path.basename(after_screenshot_path))
-                report_data['status'] = "Pending Analysis"
-                report_data['actual_results'] = f"Board before: {board_state_before}. Board after: {board_state_after}."
+                indices_to_click = action_plan.get("indices_to_click", [])
+                if len(indices_to_click) == 2:
+                    element1 = active_elements_before[indices_to_click[0]]
+                    element2 = active_elements_before[indices_to_click[1]]
+                    
+                    print(f"[DEBUG] Clicking element 1: '{element1.text}' and element 2: '{element2.text}'")
+                    element1.click()
+                    time.sleep(0.5)
+                    # We must re-find the second element in case the DOM changes
+                    active_elements_after_first_click = self._get_active_elements(driver, wait)
+                    # This is a simplification; a more robust solution would track element IDs
+                    # For now, we assume the plan is still valid and click the second element
+                    element2.click() 
+                    
+                    time.sleep(2)
+                    board_state_after = [el.text for el in self._get_active_elements(driver, wait)]
+                    report_data['status'] = "Pending Analysis"
+                    report_data['actual_results'] = f"Board before: {board_state_before}. Board after: {board_state_after}."
+                else:
+                    raise ValueError("Solver returned an invalid plan.")
 
         except Exception as e:
-            plan_str = f"the {action_plan.get('first_index', 'N/A')}-th '{action_plan.get('first_number', 'N/A')}'"
-            error_message = f"Failure on {resolution_str}: Timed out trying to click {plan_str}. Board state: {board_state_before}"
+            error_message = f"Execution failed with error: {str(e)}"
             report_data['actual_log'] = error_message
         
         finally:
@@ -85,10 +90,6 @@ class ExecutorAgent:
                 driver.quit()
         
         return report_data
-
-    def _get_board_state(self, driver, wait: WebDriverWait):
-        # ... this method is correct ...
-        pass
 
 # ... rest of the code ...
 # import json

@@ -9,53 +9,49 @@ load_dotenv()
 
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
+
+# ... imports ...
 class SolverAgent:
     def __init__(self):
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.0, google_api_key=GOOGLE_API_KEY)
-
-        # --- REFINED PROMPT FOR MORE ACCURATE PLANS ---
+        self.llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro-latest", temperature=0.0, google_api_key=GOOGLE_API_KEY)
         self.prompt = PromptTemplate(
             template="""
-            You are an expert player of the SumLink game. Your task is to find a valid move on a given game board that satisfies a specific test objective.
-
-            Game Rules:
-            - A valid move is clicking a pair of numbers that are either IDENTICAL or sum to 10.
-            - The pair must have a clear path between them (only empty spaces or no other numbers).
-            - The board is a list of all currently active (clickable) numbers.
+            You are an expert game player. Your task is to find a valid pair to click based on a list of available numbers and a test objective.
+            The input is a list of dictionaries, where each dictionary has a 'text' (the number) and an 'index' (its position on the board).
+            Game Rules: A valid pair is two numbers that are either IDENTICAL or sum to 10.
 
             Your Task:
-            Analyze the current board state and the test objective. Find the first valid pair that satisfies the objective.
-            Provide the numbers and their 1-based index (position) IN THE PROVIDED LIST.
+            Analyze the list of available numbers and the objective. Find the best pair that satisfies the objective.
+            Return a JSON object with the key "indices_to_click", which is a list containing the two integer indices of the elements you chose from the original list.
+            If no valid move exists that satisfies the objective, return a JSON object with the key "actionable" set to false.
 
-            Current Board State (list of active numbers):
-            {board_state}
+            Available Numbers (List of Dictionaries):
+            {elements_info}
 
             Test Objective:
             {test_objective}
 
-            If a valid move exists, return a JSON object with keys "first_number", "first_index", "second_number", "second_index".
-            If NO valid move exists that satisfies the objective, return a JSON object with "actionable" set to false.
-
             Example:
-            Board: ["8", "1", "9", "8", "3"]
+            Available Numbers: [{{"text": "8", "index": 0}}, {{"text": "1", "index": 1}}, {{"text": "9", "index": 2}}, {{"text": "8", "index": 3}}]
             Objective: "Verify removal of an identical pair."
-            Output: {{"first_number": "8", "first_index": 1, "second_number": "8", "second_index": 2}}
-
-            Now, analyze the given board and objective.
+            Output: {{"indices_to_click": [0, 3]}}
             \n{format_instructions}\n
             """,
-            input_variables=["board_state", "test_objective"],
+            input_variables=["elements_info", "test_objective"],
             partial_variables={"format_instructions": JsonOutputParser().get_format_instructions()}
         )
         self.chain = self.prompt | self.llm | JsonOutputParser()
 
-    def create_action_plan(self, board_state, test_objective):
-        print(f"SolverAgent: Finding a move for objective '{test_objective}' on board {board_state}")
-        if not board_state:
+    def create_action_plan(self, active_elements, test_objective):
+        if not active_elements:
             return {"actionable": False, "reason": "The board is empty."}
         
+        # Create a simplified list for the LLM
+        elements_info = [{"text": el.text, "index": i} for i, el in enumerate(active_elements)]
+        print(f"SolverAgent: Finding a move for '{test_objective}' from available elements: {elements_info}")
+        
         plan = self.chain.invoke({
-            "board_state": str(board_state),
+            "elements_info": str(elements_info),
             "test_objective": test_objective
         })
         print(f"SolverAgent: Generated plan: {plan}")
